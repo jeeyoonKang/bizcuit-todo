@@ -1,6 +1,6 @@
 import { startTransition } from "react";
 import type { Task, TaskFilters } from "../types";
-import { formatDate } from "../utils";
+import { formatDate, isTaskOverdue } from "../utils";
 
 type TaskListPanelProps = {
   tasks: Task[];
@@ -90,7 +90,7 @@ export function TaskListPanel({
       <div className="task-list">
         {tasks.map((task) => {
           const isOverdue =
-            !task.done && task.deadline && new Date(task.deadline) < new Date();
+            !task.done && task.deadline ? isTaskOverdue(task.deadline) : false;
 
           return (
             <article

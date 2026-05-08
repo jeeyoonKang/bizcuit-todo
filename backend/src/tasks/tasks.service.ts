@@ -6,9 +6,30 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 const normalizeOptionalText = (value?: string | null) => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+};
+
+const parseDeadline = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  if (DATE_ONLY_PATTERN.test(value)) {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  return new Date(value);
+};
+
+const startOfTodayUtc = () => {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
 };
 
 /** Handles task persistence and enforces user-scoped access rules. */
@@ -21,7 +42,7 @@ export class TasksService {
       data: {
         title: dto.title.trim(),
         description: normalizeOptionalText(dto.description),
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
+        deadline: parseDeadline(dto.deadline),
         done: dto.done ?? false,
         userId: user.id,
       },
@@ -44,7 +65,7 @@ export class TasksService {
     if (query.status === 'overdue') {
       where.done = false;
       where.deadline = {
-        lt: new Date(),
+        lt: startOfTodayUtc(),
       };
     }
 
@@ -95,7 +116,7 @@ export class TasksService {
         }),
 
         ...(dto.deadline !== undefined && {
-          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          deadline: parseDeadline(dto.deadline),
         }),
 
         ...(dto.done !== undefined && {

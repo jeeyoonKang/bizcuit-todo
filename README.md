@@ -404,7 +404,7 @@ The backend tests cover:
 * protected task routes
 * user ownership boundaries
 
-The e2e tests validate request/response behavior and authorization boundaries. They use mocked persistence rather than a dedicated test PostgreSQL database. I chose this to keep the test suite fast and meaningful within the challenge timeframe.
+The e2e tests validate request/response behavior and authorization boundaries at the Nest application layer, but they do not hit a real PostgreSQL database. `PrismaService` is overridden with mocked in-memory persistence for those tests. I chose that tradeoff to keep the suite fast and meaningful within the challenge timeframe, while accepting that it is not a full database integration test.
 
 ## Project Structure
 
@@ -442,6 +442,12 @@ Given more time, I would add:
 * stronger frontend handling for expired sessions
 * more polished loading and empty states in the UI
 
+## Known Limitations
+
+For simplicity, the frontend stores the JWT access token in `localStorage`. This keeps the challenge implementation small and easy to run locally. In a production application, I would consider using secure, `HttpOnly` cookies or another deployment-appropriate token storage strategy to reduce exposure to XSS risks.
+
+The e2e tests currently exercise request/response flows, validation, authentication, authorization, and task behavior using mocked persistence. With more time, I would add a dedicated test PostgreSQL instance to verify Prisma schema, migrations, and real database behavior end to end.
+
 ## Time-Limited Tradeoffs
 
 A few choices were kept deliberately simple:
@@ -454,4 +460,3 @@ A few choices were kept deliberately simple:
 * no advanced task features such as labels, priorities, sharing, or reminders
 
 The goal was to submit a complete, understandable implementation of the core todo/auth flow rather than a broader but less finished application.
-

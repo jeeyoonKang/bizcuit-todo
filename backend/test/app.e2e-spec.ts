@@ -277,7 +277,7 @@ describe('App (e2e)', () => {
           email: 'test@example.com',
           password: 'password123',
         })
-        .expect(201);
+        .expect(200);
 
       expect(response.body).toEqual({
         accessToken: expect.any(String),
@@ -286,6 +286,18 @@ describe('App (e2e)', () => {
           email: 'test@example.com',
         },
       });
+    });
+
+    it('POST /auth/register returns 409 for duplicate email', async () => {
+      await registerUser('test@example.com');
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'password123',
+        })
+        .expect(409);
     });
 
     it('POST /auth/login with wrong password returns 401', async () => {
@@ -566,7 +578,7 @@ describe('App (e2e)', () => {
     });
 
     it('GET /tasks rejects invalid status query', async () => {
-      const auth = await registerUser('owner@example.com');
+      const auth = await registerUser('invalid-status@example.com');
 
       await request(app.getHttpServer())
         .get('/tasks?status=invalid')
@@ -575,7 +587,7 @@ describe('App (e2e)', () => {
     });
 
     it('GET /tasks/:id rejects invalid UUID', async () => {
-      const auth = await registerUser('owner@example.com');
+      const auth = await registerUser('invalid-uuid@example.com');
 
       await request(app.getHttpServer())
         .get('/tasks/not-a-uuid')
@@ -607,6 +619,38 @@ describe('App (e2e)', () => {
         id: createdTask.body.id,
         title: 'Updated title',
         done: true,
+        userId: auth.user.id,
+      });
+    });
+
+    it('PATCH /tasks/:id clears nullable fields when set to null', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Original title',
+          description: 'Original description',
+          deadline: '2030-01-01',
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          description: null,
+          deadline: null,
+        })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: createdTask.body.id,
+        title: 'Original title',
+        description: null,
+        deadline: null,
+        done: false,
         userId: auth.user.id,
       });
     });
