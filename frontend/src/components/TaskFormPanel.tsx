@@ -33,6 +33,12 @@ export function TaskFormPanel({
         ) : null}
       </div>
 
+      <p className="form-note">
+        {editing
+          ? "Update the selected task, then save to refresh the list."
+          : "Add a title, optional notes, and an optional deadline."}
+      </p>
+
       <form className="stack" onSubmit={onSubmit}>
         <label>
           <span>Title</span>

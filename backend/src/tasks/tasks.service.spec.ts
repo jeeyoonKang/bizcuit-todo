@@ -130,17 +130,24 @@ describe('TasksService', () => {
 
       await service.findAll(user, { status: 'overdue' });
 
-      expect(prisma.task.findMany).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-1',
-          done: false,
-          deadline: {
-            lt: expect.any(Date),
-          },
+      const [call] = prisma.task.findMany.mock.calls[0] as [
+        {
+          where: {
+            userId: string;
+            done: boolean;
+            deadline?: { lt: Date };
+          };
+          orderBy: {
+            createdAt: 'desc';
+          };
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+      ];
+
+      expect(call.where.userId).toBe('user-1');
+      expect(call.where.done).toBe(false);
+      expect(call.where.deadline?.lt).toBeInstanceOf(Date);
+      expect(call.orderBy).toEqual({
+        createdAt: 'desc',
       });
     });
 

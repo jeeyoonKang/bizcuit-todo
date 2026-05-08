@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
 
@@ -27,6 +27,7 @@ import type {
 
 import {
   getErrorMessage,
+  isUnauthorizedError,
   normalizeTaskCreateForm,
   normalizeTaskUpdateForm,
 } from "./utils";
@@ -67,6 +68,30 @@ function App() {
   const [submittingAuth, setSubmittingAuth] = useState(false);
   const [submittingTask, setSubmittingTask] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tasksBusy = loading || submittingTask;
+
+  const clearSession = useCallback((nextError?: string) => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("authUser");
+    setToken(null);
+    setUser(null);
+    setTasks([]);
+    setTaskForm(initialTaskForm);
+    setEditingTaskId(null);
+    setError(nextError ?? null);
+  }, []);
+
+  const handleTaskError = useCallback(
+    (error: unknown) => {
+      if (isUnauthorizedError(error)) {
+        clearSession("Session expired. Please log in again.");
+        return;
+      }
+
+      setError(getErrorMessage(error));
+    },
+    [clearSession],
+  );
 
   useEffect(() => {
     if (!token) {
@@ -81,14 +106,14 @@ function App() {
         const nextTasks = await fetchTasks(token, filters);
         setTasks(nextTasks);
       } catch (err) {
-        setError(getErrorMessage(err));
+        handleTaskError(err);
       } finally {
         setLoading(false);
       }
     };
 
     void run();
-  }, [token, filters]);
+  }, [token, filters, handleTaskError]);
 
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -139,21 +164,14 @@ function App() {
       resetTaskForm();
       await reloadTasks(token);
     } catch (err) {
-      setError(getErrorMessage(err));
+      handleTaskError(err);
     } finally {
       setSubmittingTask(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("authUser");
-    setToken(null);
-    setUser(null);
-    setTasks([]);
-    setTaskForm(initialTaskForm);
-    setEditingTaskId(null);
-    setError(null);
+    clearSession();
   };
 
   const handleEdit = (task: Task) => {
@@ -182,7 +200,7 @@ function App() {
 
       await reloadTasks(token);
     } catch (err) {
-      setError(getErrorMessage(err));
+      handleTaskError(err);
     }
   };
 
@@ -197,7 +215,7 @@ function App() {
       await toggleTaskDone(token, task.id, !task.done);
       await reloadTasks(token);
     } catch (err) {
-      setError(getErrorMessage(err));
+      handleTaskError(err);
     }
   };
 
@@ -273,6 +291,7 @@ function App() {
 
             <TaskListPanel
               tasks={tasks}
+              busy={tasksBusy}
               filters={filters}
               loading={loading}
               onFiltersChange={setFilters}

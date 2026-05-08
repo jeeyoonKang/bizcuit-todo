@@ -1,183 +1,298 @@
 # Bizcuit Todo Challenge
 
-Full-stack todo application for the Bizcuit code challenge.
+A small full-stack todo application built for the Bizcuit code challenge.
 
-Stack:
-- Frontend: React + Vite + TypeScript
-- Backend: NestJS + TypeScript
-- Database: PostgreSQL + Prisma
-- Auth: JWT + bcrypt
+The project includes a NestJS backend, PostgreSQL database, Prisma ORM, JWT authentication, and a lightweight React frontend to exercise the main user flows.
+
+## Stack
+
+- Frontend: React, Vite, TypeScript
+- Backend: NestJS, TypeScript
+- Database: PostgreSQL
+- ORM: Prisma
+- Auth: JWT, bcrypt
+- Testing: Jest, Supertest
+
+## What Is Included
+
+This submission covers:
+
+- user registration and login
+- password hashing with bcrypt
+- JWT-based authentication
+- user-scoped task CRUD
+- optional task deadlines
+- task completion state
+- basic filtering and sorting
+- backend unit tests
+- backend request-level e2e tests
+- a simple React frontend for manual review
 
 ## Approach
 
-I approached the challenge by building the backend first around the core business rules:
+I started with the backend because the core of the challenge is around authentication, task ownership, and API correctness.
+
+The main business rules are:
 
 - users can register and log in
-- authenticated users can manage only their own tasks
-- tasks support CRUD, completion state, and optional deadlines
+- authenticated users can manage their own tasks
+- users cannot access tasks owned by another user
+- tasks can be created, listed, updated, completed, and deleted
+- tasks can optionally have a deadline
 
-The goal was to keep the implementation small, explicit, and easy to review within the challenge time limit. I prioritized:
+Within the time limit, I focused on making the main path complete and easy to review rather than adding a large feature set. The backend has clear module boundaries, DTO validation at the API boundary, database-backed ownership checks, and tests around the most important flows.
 
-- clear module boundaries
-- database-backed ownership checks
-- DTO validation at the API boundary
-- test coverage for the most important backend flows
+The frontend is intentionally small. Its job is to make the API easy to try out without needing Postman or curl.
 
 ## Design Choices
 
-### Why NestJS
+### NestJS
 
-NestJS provides a clean module structure for auth, tasks, and infrastructure concerns. For a challenge project, it makes the code easier to navigate and keeps controllers, services, DTOs, and guards separated by responsibility.
+NestJS gives the backend a clear structure without much extra setup. Controllers, services, DTOs, guards, and modules are separated by responsibility, which makes the project easier to navigate during review.
 
-### Why PostgreSQL + Prisma
+The main backend modules are:
 
-The challenge explicitly asks for Node.js, TypeScript, and an SQL database. PostgreSQL is a strong default for relational data, and Prisma keeps the schema, migrations, and typed database access straightforward.
+- `AuthModule` for registration, login, JWT issuing, and JWT validation
+- `TasksModule` for protected task CRUD
+- `PrismaModule` for database access and Prisma client lifecycle
 
-### Why JWT Authentication
+### PostgreSQL and Prisma
 
-The challenge allows HTTP Basic Auth at minimum, but JWT is a better fit for a modern frontend + backend setup:
+The challenge asks for a Node.js + TypeScript backend with an SQL database. PostgreSQL is a reliable default for relational data, and Prisma keeps schema definition, migrations, and typed database access straightforward.
 
-- stateless authentication
-- easy frontend integration using bearer tokens
-- simple route protection with Nest guards and Passport
-
-Passwords are hashed with `bcrypt` before storage.
-
-### Why A Minimal React Frontend
-
-The challenge is primarily backend-focused, so I kept the frontend intentionally small. Its purpose is to demonstrate the main user flows against the real API:
-
-- register and log in
-- persist the JWT on the client
-- create, list, update, and delete tasks
-- mark tasks done or undone
-- apply basic task filtering and sorting
-
-For simplicity, the frontend stores the JWT in `localStorage`. In a production setup, I would evaluate `httpOnly` cookies depending on the deployment model and security constraints.
-
-## Backend Overview
-
-### Modules
-
-- `AuthModule`: registration, login, JWT issuance, JWT validation
-- `TasksModule`: protected task CRUD and task state management
-- `PrismaModule`: shared Prisma client lifecycle
-
-### Data Model
+The data model is intentionally simple:
 
 #### User
 
 - `id`
-- `email` unique
+- `email`
 - `passwordHash`
-- timestamps
+- `createdAt`
+- `updatedAt`
 
 #### Task
 
 - `id`
 - `title`
-- `description` nullable
-- `deadline` nullable
+- `description`
+- `deadline`
 - `done`
-- `userId` foreign key to `User`
-- timestamps
+- `userId`
+- `createdAt`
+- `updatedAt`
 
-Each task belongs to exactly one user. Task access is restricted by `userId` in service-layer queries.
+Each task belongs to exactly one user.
 
-### Validation and Authorization
+### JWT Authentication
 
-- DTO validation is handled with Nest `ValidationPipe`
-- only authenticated users can access `/tasks`
-- users can only read, update, and delete their own tasks
-- passwords are hashed with `bcrypt`
+The challenge allows basic authentication, but I chose JWT because it fits a frontend/backend application better.
 
-### Filtering and Sorting
+The backend returns an access token after registration or login. Protected routes require:
 
-`GET /tasks` supports:
+```http
+Authorization: Bearer <token>
+````
 
-- `status=all|active|done|overdue`
-- `sort=newest|deadlineAsc`
+Passwords are never stored directly. They are hashed with `bcrypt` before being saved.
 
-## Frontend Overview
+### Authorization Model
 
-The frontend is a small React + Vite application built as a reviewer-facing MVP rather than a full product UI.
+Task ownership is enforced in the service layer by always querying or mutating tasks with both:
 
-It includes:
+* the task ID
+* the authenticated user ID
 
-- login and registration in a single screen
-- local token persistence
-- authenticated task list retrieval
-- create and edit task form
-- done/undone toggles
-- delete action
-- filter and sort controls
+For example, update and delete operations are scoped by `id` and `userId`, so a user cannot modify another user's task even if they know the task ID.
 
-I kept the frontend state management in plain React state to avoid adding unnecessary complexity for a time-boxed challenge.
+### Frontend Scope
 
-## Security Considerations
+The frontend is a small reviewer-facing UI, not a polished product interface.
 
-- Passwords are hashed with `bcrypt` before storage.
-- Task endpoints are protected with JWT authentication.
-- Task access is scoped by the authenticated `userId`, so users can only access their own tasks.
-- Request payloads are validated with DTOs and Nest's `ValidationPipe`.
-- Secrets and database configuration are provided through environment variables.
+It supports:
 
-## Performance Considerations
+* registration
+* login
+* persisted login using the access token
+* task creation
+* task editing
+* task deletion
+* done/undone toggles
+* filtering and sorting
 
-The backend keeps task queries simple and scoped by `userId`, which matches the main access pattern of a personal todo application.
+I used plain React state instead of adding a larger state-management or data-fetching library. For this scope, that keeps the code easier to follow.
 
-`GET /tasks` supports basic filtering and sorting. With more time, I would add pagination to avoid returning too many tasks at once as the dataset grows.
+The access token is stored in `localStorage` for simplicity. In a production setup, I would revisit this and consider `httpOnly` cookies depending on the deployment and security requirements.
 
 ## API Summary
 
 ### Auth
 
-- `POST /auth/register`
-  - body: `{ "email": "user@example.com", "password": "password123" }`
-  - returns: `{ accessToken, user }`
+#### Register
 
-- `POST /auth/login`
-  - body: `{ "email": "user@example.com", "password": "password123" }`
-  - returns: `{ accessToken, user }`
+```http
+POST /auth/register
+```
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Returns:
+
+```json
+{
+  "accessToken": "...",
+  "user": {
+    "id": "...",
+    "email": "user@example.com"
+  }
+}
+```
+
+#### Login
+
+```http
+POST /auth/login
+```
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Returns:
+
+```json
+{
+  "accessToken": "...",
+  "user": {
+    "id": "...",
+    "email": "user@example.com"
+  }
+}
+```
 
 ### Tasks
 
-All task endpoints require:
+All task endpoints require a bearer token.
+
+#### Create Task
 
 ```http
-Authorization: Bearer <jwt>
+POST /tasks
 ```
 
-* `POST /tasks`
+Creates a task for the authenticated user.
 
-  * create a task
+#### List Tasks
 
-* `GET /tasks`
+```http
+GET /tasks
+```
 
-  * list current user's tasks
-  * optional query params: `status`, `sort`
+Lists the authenticated user's tasks.
 
-* `GET /tasks/:id`
+Optional query parameters:
 
-  * get one owned task
+```http
+GET /tasks?status=active&sort=deadlineAsc
+```
 
-* `PATCH /tasks/:id`
+Supported `status` values:
 
-  * update owned task fields
+* `all`
+* `active`
+* `done`
+* `overdue`
 
-* `PATCH /tasks/:id/done`
+Supported `sort` values:
 
-  * mark task done
+* `newest`
+* `deadlineAsc`
 
-* `PATCH /tasks/:id/undone`
+#### Get One Task
 
-  * mark task undone
+```http
+GET /tasks/:id
+```
 
-* `DELETE /tasks/:id`
+Returns one task owned by the authenticated user.
 
-  * delete owned task
+#### Update Task
 
-The dedicated `/done` and `/undone` endpoints are convenience endpoints for common task state transitions.
+```http
+PATCH /tasks/:id
+```
+
+Partially updates an owned task.
+
+#### Mark Task Done
+
+```http
+PATCH /tasks/:id/done
+```
+
+Marks an owned task as completed.
+
+#### Mark Task Undone
+
+```http
+PATCH /tasks/:id/undone
+```
+
+Marks an owned task as not completed.
+
+#### Delete Task
+
+```http
+DELETE /tasks/:id
+```
+
+Deletes an owned task.
+
+## Validation and Security
+
+The backend includes:
+
+* DTO validation with NestJS `ValidationPipe`
+* JWT route protection for task endpoints
+* password hashing with `bcrypt`
+* user-scoped task access
+* UUID validation for task route parameters
+* environment-based configuration for secrets and database connection values
+
+Current security tradeoff:
+
+* the frontend stores the access token in `localStorage` to keep the challenge implementation simple
+
+For a production application, I would review token storage, token expiry, refresh strategy, CSRF implications, and deployment-specific security requirements.
+
+## Filtering and Sorting
+
+`GET /tasks` supports basic filtering and sorting.
+
+Filtering:
+
+* `all`: returns all owned tasks
+* `active`: returns incomplete tasks
+* `done`: returns completed tasks
+* `overdue`: returns incomplete tasks with a deadline in the past
+
+Sorting:
+
+* `newest`: newest tasks first
+* `deadlineAsc`: earliest deadline first
+
+This keeps the API useful while avoiding unnecessary complexity for the challenge scope.
 
 ## Running the Project
 
@@ -189,7 +304,13 @@ The dedicated `/done` and `/undone` endpoints are convenience endpoints for comm
 
 ### Environment Variables
 
-Copy `backend/.env.example` to `backend/.env`:
+Create a backend environment file:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Example backend `.env`:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bizcuit_todo?schema=public"
@@ -197,53 +318,64 @@ JWT_SECRET="super-secret-change-me"
 JWT_EXPIRES_IN="1h"
 ```
 
-Copy `frontend/.env.example` to `frontend/.env` if you want to override the default API URL:
+Create a frontend environment file if you want to override the default API URL:
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+Example frontend `.env`:
 
 ```env
 VITE_API_BASE_URL="http://localhost:3000"
 ```
 
-### Start PostgreSQL
+### Quick Start
 
-From the repo root:
+From the repository root:
 
 ```bash
 docker compose up -d
 ```
 
-### Install Dependencies
-
-```bash
-cd backend && npm install
-cd ../frontend && npm install
-```
-
-### Run Prisma Migrations
+Install backend dependencies:
 
 ```bash
 cd backend
+npm install
+```
+
+Run database migrations:
+
+```bash
 npx prisma migrate deploy
 ```
 
-For local development, `npx prisma migrate dev` is also fine.
-
-### Start Backend
+Start the backend:
 
 ```bash
-cd backend
 npm run start:dev
 ```
 
-Backend runs on `http://localhost:3000`.
-
-### Start Frontend
+In a second terminal, install and start the frontend:
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`.
+The backend runs on:
+
+```text
+http://localhost:3000
+```
+
+The frontend runs on:
+
+```text
+http://localhost:5173
+```
 
 ## Testing
 
@@ -261,32 +393,65 @@ cd backend
 npm run test:e2e
 ```
 
-Current backend tests cover:
+The backend tests cover:
 
-* auth service
-* auth controller
-* JWT strategy
-* task service
-* task controller
-* auth/task e2e flows, including authorization boundaries between users
+* auth service behavior
+* auth controller behavior
+* JWT strategy behavior
+* task service behavior
+* task controller behavior
+* register/login request flows
+* protected task routes
+* user ownership boundaries
+
+The e2e tests validate request/response behavior and authorization boundaries. They use mocked persistence rather than a dedicated test PostgreSQL database. I chose this to keep the test suite fast and meaningful within the challenge timeframe.
+
+## Project Structure
+
+```text
+backend/
+  prisma/
+    schema.prisma
+  src/
+    auth/
+    common/
+    prisma/
+    tasks/
+    app.module.ts
+    main.ts
+
+frontend/
+  src/
+    components/
+    api.ts
+    App.tsx
+    types.ts
+    utils.ts
+```
 
 ## What I Would Improve Next
 
 Given more time, I would add:
 
 * pagination for `GET /tasks`
-* Swagger or OpenAPI documentation
-* refresh token or token rotation strategy
-* database-backed e2e tests using a dedicated test PostgreSQL instance
-* centralized exception/response formatting
-* CI to run lint, unit tests, and e2e tests automatically
+* Swagger/OpenAPI documentation
+* database-backed e2e tests with a dedicated test database
+* refresh tokens or another token renewal strategy
+* centralized error response formatting
+* CI for linting, unit tests, and e2e tests
+* stronger frontend handling for expired sessions
+* more polished loading and empty states in the UI
 
 ## Time-Limited Tradeoffs
 
-Because this was a time-boxed challenge, I intentionally kept some parts minimal:
+A few choices were kept deliberately simple:
 
-* pagination is not implemented yet
-* API documentation is written in the README instead of generated through Swagger
-* e2e tests currently focus on request/response flows and authorization boundaries with mocked persistence
-* advanced features such as task groups, offline support, and PWA caching were left as future improvements
-* README is focused on reviewer usability rather than exhaustive system documentation
+* no pagination yet
+* no generated API documentation
+* no refresh token flow
+* no dedicated test database for e2e tests
+* lightweight frontend state management
+* no advanced task features such as labels, priorities, sharing, or reminders
+
+The goal was to submit a complete, understandable implementation of the core todo/auth flow rather than a broader but less finished application.
+

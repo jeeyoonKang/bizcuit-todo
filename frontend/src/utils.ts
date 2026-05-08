@@ -24,6 +24,12 @@ export function getErrorMessage(error: unknown) {
   return "Something went wrong.";
 }
 
+export function isUnauthorizedError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return message.includes("unauthorized") || message.includes("jwt");
+}
+
 export function formatDate(value: string) {
   return new Date(value).toLocaleDateString();
 }

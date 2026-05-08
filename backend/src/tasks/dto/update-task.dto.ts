@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -9,16 +9,19 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+const trimTransformedString = ({ value }: TransformFnParams): unknown =>
+  typeof value === 'string' ? value.trim() : (value as unknown);
+
 export class UpdateTaskDto {
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimTransformedString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
   title?: string;
 
   @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimTransformedString)
   @IsString()
   @MaxLength(1000)
   description?: string | null;

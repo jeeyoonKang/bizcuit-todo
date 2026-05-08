@@ -10,6 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthUser } from '../common/types/auth-user.type';
 
+/** Registers users, verifies credentials, and issues access tokens. */
 @Injectable()
 export class AuthService {
   constructor(

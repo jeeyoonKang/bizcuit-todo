@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
+/** Wraps the shared Prisma client and manages its Nest lifecycle hooks. */
 @Injectable()
 export class PrismaService
   extends PrismaClient

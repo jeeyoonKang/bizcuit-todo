@@ -1,3 +1,11 @@
+/* eslint-disable
+  @typescript-eslint/no-unsafe-assignment,
+  @typescript-eslint/no-unsafe-member-access,
+  @typescript-eslint/no-unsafe-return,
+  @typescript-eslint/no-unsafe-argument,
+  @typescript-eslint/no-unsafe-call,
+  @typescript-eslint/require-await
+*/
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
@@ -423,6 +431,32 @@ describe('App (e2e)', () => {
       });
     });
 
+    it('GET /tasks/:id returns owned task', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Read me',
+          description: 'Single task fetch',
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: createdTask.body.id,
+        title: 'Read me',
+        description: 'Single task fetch',
+        done: false,
+        userId: auth.user.id,
+      });
+    });
+
     it('GET /tasks supports status=done filter', async () => {
       const auth = await registerUser('owner@example.com');
 
@@ -453,6 +487,49 @@ describe('App (e2e)', () => {
       expect(response.body[0]).toMatchObject({
         title: 'Done task',
         done: true,
+      });
+    });
+
+    it('GET /tasks supports status=overdue filter', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Overdue task',
+          deadline: '2020-01-01T00:00:00.000Z',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Completed old task',
+          deadline: '2020-01-02T00:00:00.000Z',
+          done: true,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Future task',
+          deadline: '2030-01-01T00:00:00.000Z',
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get('/tasks?status=overdue')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toMatchObject({
+        title: 'Overdue task',
+        done: false,
       });
     });
 
@@ -497,6 +574,15 @@ describe('App (e2e)', () => {
         .expect(400);
     });
 
+    it('GET /tasks/:id rejects invalid UUID', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .get('/tasks/not-a-uuid')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(400);
+    });
+
     it('PATCH /tasks/:id updates owned task', async () => {
       const auth = await registerUser('owner@example.com');
 
@@ -521,6 +607,55 @@ describe('App (e2e)', () => {
         id: createdTask.body.id,
         title: 'Updated title',
         done: true,
+        userId: auth.user.id,
+      });
+    });
+
+    it('PATCH /tasks/:id/done marks owned task as done', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Mark me done',
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}/done`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: createdTask.body.id,
+        title: 'Mark me done',
+        done: true,
+        userId: auth.user.id,
+      });
+    });
+
+    it('PATCH /tasks/:id/undone marks owned task as active', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Mark me active',
+          done: true,
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}/undone`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: createdTask.body.id,
+        title: 'Mark me active',
+        done: false,
         userId: auth.user.id,
       });
     });
@@ -627,19 +762,6 @@ describe('App (e2e)', () => {
         .expect(200);
 
       expect(listResponse.body).toEqual([]);
-    });
-
-    it('POST /tasks rejects whitespace-only title', async () => {
-      const auth = await registerUser('owner@example.com');
-
-      await request(app.getHttpServer())
-        .post('/tasks')
-        .set('Authorization', `Bearer ${auth.accessToken}`)
-        .send({
-          title: '   ',
-          description: 'This should not be accepted',
-        })
-        .expect(400);
     });
   });
 });

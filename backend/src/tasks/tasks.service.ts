@@ -6,6 +6,12 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
+const normalizeOptionalText = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+/** Handles task persistence and enforces user-scoped access rules. */
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,7 +20,7 @@ export class TasksService {
     return this.prisma.task.create({
       data: {
         title: dto.title.trim(),
-        description: dto.description?.trim() ?? null,
+        description: normalizeOptionalText(dto.description),
         deadline: dto.deadline ? new Date(dto.deadline) : null,
         done: dto.done ?? false,
         userId: user.id,
@@ -85,7 +91,7 @@ export class TasksService {
         }),
 
         ...(dto.description !== undefined && {
-          description: dto.description?.trim() ?? null,
+          description: normalizeOptionalText(dto.description),
         }),
 
         ...(dto.deadline !== undefined && {

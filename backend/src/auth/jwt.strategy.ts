@@ -9,6 +9,7 @@ type JwtPayload = {
   email: string;
 };
 
+/** Validates bearer tokens and resolves the current user for protected routes. */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(

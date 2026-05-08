@@ -5,6 +5,7 @@ import { formatDate } from "../utils";
 type TaskListPanelProps = {
   tasks: Task[];
   filters: TaskFilters;
+  busy: boolean;
   loading: boolean;
   onFiltersChange: (filters: TaskFilters) => void;
   onToggleDone: (task: Task) => void;
@@ -15,6 +16,7 @@ type TaskListPanelProps = {
 export function TaskListPanel({
   tasks,
   filters,
+  busy,
   loading,
   onFiltersChange,
   onToggleDone,
@@ -23,6 +25,10 @@ export function TaskListPanel({
 }: TaskListPanelProps) {
   const taskCountLabel =
     tasks.length === 1 ? "1 task in view" : `${tasks.length} tasks in view`;
+  const emptyStateMessage =
+    filters.status === "all"
+      ? "No tasks yet. Create one from the form to start the review flow."
+      : "No tasks match the current filter.";
 
   return (
     <section className="panel">
@@ -48,6 +54,7 @@ export function TaskListPanel({
                   });
                 })
               }
+              disabled={busy}
             >
               {status}
             </button>
@@ -66,6 +73,7 @@ export function TaskListPanel({
                 });
               })
             }
+            disabled={busy}
           >
             <option value="newest">Newest</option>
             <option value="deadlineAsc">Deadline asc</option>
@@ -76,7 +84,7 @@ export function TaskListPanel({
       {loading ? <p className="status-message">Loading tasks...</p> : null}
 
       {!loading && tasks.length === 0 ? (
-        <p className="status-message">No tasks match the current filter.</p>
+        <p className="status-message">{emptyStateMessage}</p>
       ) : null}
 
       <div className="task-list">
@@ -119,6 +127,7 @@ export function TaskListPanel({
                   type="button"
                   className="ghost"
                   onClick={() => onToggleDone(task)}
+                  disabled={busy}
                 >
                   {task.done ? "Mark active" : "Mark done"}
                 </button>
@@ -127,6 +136,7 @@ export function TaskListPanel({
                   type="button"
                   className="ghost"
                   onClick={() => onEdit(task)}
+                  disabled={busy}
                 >
                   Edit
                 </button>
@@ -135,6 +145,7 @@ export function TaskListPanel({
                   type="button"
                   className="danger"
                   onClick={() => onDelete(task.id)}
+                  disabled={busy}
                 >
                   Delete
                 </button>
