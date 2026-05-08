@@ -334,7 +334,37 @@ describe('App (e2e)', () => {
         })
         .expect(400);
     });
+    it('POST /tasks rejects whitespace-only title', async () => {
+      const auth = await registerUser('owner@example.com');
 
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: '   ',
+          description: 'This should not be accepted',
+        })
+        .expect(400);
+    });
+    it('PATCH /tasks/:id rejects whitespace-only title', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Original title',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: '   ',
+        })
+        .expect(400);
+    });
     it('POST /tasks rejects invalid deadline', async () => {
       const auth = await registerUser('owner@example.com');
 
@@ -597,6 +627,19 @@ describe('App (e2e)', () => {
         .expect(200);
 
       expect(listResponse.body).toEqual([]);
+    });
+
+    it('POST /tasks rejects whitespace-only title', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: '   ',
+          description: 'This should not be accepted',
+        })
+        .expect(400);
     });
   });
 });
