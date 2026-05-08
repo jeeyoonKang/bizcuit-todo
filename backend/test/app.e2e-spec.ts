@@ -268,6 +268,16 @@ describe('App (e2e)', () => {
       });
     });
 
+    it('POST /auth/register rejects invalid payloads', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'not-an-email',
+          password: 'short',
+        })
+        .expect(400);
+    });
+
     it('POST /auth/login returns accessToken', async () => {
       await registerUser('test@example.com');
 
@@ -677,6 +687,24 @@ describe('App (e2e)', () => {
         done: true,
         userId: auth.user.id,
       });
+    });
+
+    it('PATCH /tasks/:id/done returns 404 for another user task', async () => {
+      const owner = await registerUser('owner@example.com');
+      const otherUser = await registerUser('other@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({
+          title: 'Private task',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}/done`)
+        .set('Authorization', `Bearer ${otherUser.accessToken}`)
+        .expect(404);
     });
 
     it('PATCH /tasks/:id/undone marks owned task as active', async () => {

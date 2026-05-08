@@ -28,6 +28,12 @@ This submission covers:
 - backend request-level e2e tests
 - a simple React frontend for manual review
 
+## Time Spent
+
+I spent approximately 3 hours on the challenge.
+
+I prioritized the backend, authentication and authorization, task ownership, and backend tests first. After that, I added a small frontend so the main flows can be reviewed manually without needing Postman or curl.
+
 ## Approach
 
 I started with the backend because the core of the challenge is around authentication, task ownership, and API correctness.
@@ -42,7 +48,7 @@ The main business rules are:
 
 Within the time limit, I focused on making the main path complete and easy to review rather than adding a large feature set. The backend has clear module boundaries, DTO validation at the API boundary, database-backed ownership checks, and tests around the most important flows.
 
-The frontend is intentionally small. Its job is to make the API easy to try out without needing Postman or curl.
+The frontend is intentionally small. Its purpose is to make the API easy to try out and to demonstrate the main user flows.
 
 ## Design Choices
 
@@ -58,7 +64,7 @@ The main backend modules are:
 
 ### PostgreSQL and Prisma
 
-The challenge asks for a Node.js + TypeScript backend with an SQL database. PostgreSQL is a reliable default for relational data, and Prisma keeps schema definition, migrations, and typed database access straightforward.
+The challenge asks for a Node.js and TypeScript backend with an SQL database. PostgreSQL is a reliable default for relational data, and Prisma keeps schema definition, migrations, and typed database access straightforward.
 
 The data model is intentionally simple:
 
@@ -85,13 +91,13 @@ Each task belongs to exactly one user.
 
 ### JWT Authentication
 
-The challenge allows basic authentication, but I chose JWT because it fits a frontend/backend application better.
+The challenge allowed basic authentication, but I chose JWT because it is closer to how I would structure a real frontend/backend application.
 
 The backend returns an access token after registration or login. Protected routes require:
 
 ```http
 Authorization: Bearer <token>
-````
+```
 
 Passwords are never stored directly. They are hashed with `bcrypt` before being saved.
 
@@ -121,7 +127,7 @@ It supports:
 
 I used plain React state instead of adding a larger state-management or data-fetching library. For this scope, that keeps the code easier to follow.
 
-The access token is stored in `localStorage` for simplicity. In a production setup, I would revisit this and consider `httpOnly` cookies depending on the deployment and security requirements.
+The access token is stored in `localStorage` for simplicity. In a production setup, I would revisit this and consider `HttpOnly` cookies or another deployment-appropriate token storage strategy.
 
 ## API Summary
 
@@ -292,7 +298,7 @@ Sorting:
 * `newest`: newest tasks first
 * `deadlineAsc`: earliest deadline first
 
-This keeps the API useful while avoiding unnecessary complexity for the challenge scope.
+This keeps the API useful while avoiding unnecessary complexity for the challenge scope. For this challenge, deadlines are treated as simple date-oriented values rather than fully timezone-aware scheduling rules.
 
 ## Running the Project
 
@@ -316,6 +322,7 @@ Example backend `.env`:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bizcuit_todo?schema=public"
 JWT_SECRET="super-secret-change-me"
 JWT_EXPIRES_IN="1h"
+FRONTEND_URL="http://localhost:5173"
 ```
 
 Create a frontend environment file if you want to override the default API URL:
@@ -404,30 +411,85 @@ The backend tests cover:
 * protected task routes
 * user ownership boundaries
 
-The e2e tests validate request/response behavior and authorization boundaries at the Nest application layer, but they do not hit a real PostgreSQL database. `PrismaService` is overridden with mocked in-memory persistence for those tests. I chose that tradeoff to keep the suite fast and meaningful within the challenge timeframe, while accepting that it is not a full database integration test.
+The e2e tests validate request/response behavior and authorization boundaries at the Nest application layer, but they do not hit a real PostgreSQL database. `PrismaService` is overridden with mocked in-memory persistence for those tests.
+
+I chose that tradeoff to keep the suite fast and meaningful within the challenge timeframe, while accepting that it is not a full database integration test.
+
+## Verification
+
+I verified the project with the following commands:
+
+### Backend
+
+```bash
+cd backend
+npm install
+npm test
+npm run test:e2e
+npm run build
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run lint
+npm run build
+```
 
 ## Project Structure
 
 ```text
-backend/
-  prisma/
-    schema.prisma
-  src/
-    auth/
-    common/
-    prisma/
-    tasks/
-    app.module.ts
-    main.ts
+.
+├── README.md
+├── docker-compose.yml
+├── backend/
+│   ├── prisma/
+│   │   ├── migrations/
+│   │   └── schema.prisma
+│   ├── src/
+│   │   ├── auth/
+│   │   │   ├── dto/
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.module.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── jwt-auth.guard.ts
+│   │   │   └── jwt.strategy.ts
+│   │   ├── common/
+│   │   │   ├── decorators/
+│   │   │   └── types/
+│   │   ├── prisma/
+│   │   │   ├── prisma.module.ts
+│   │   │   └── prisma.service.ts
+│   │   ├── tasks/
+│   │   │   ├── dto/
+│   │   │   ├── tasks.controller.ts
+│   │   │   ├── tasks.module.ts
+│   │   │   └── tasks.service.ts
+│   │   ├── app.module.ts
+│   │   └── main.ts
+│   └── test/
+│       └── app.e2e-spec.ts
+└── frontend/
+    ├── public/
+    └── src/
+        ├── components/
+        │   ├── AuthPanel.tsx
+        │   ├── TaskFormPanel.tsx
+        │   └── TaskListPanel.tsx
+        ├── App.tsx
+        ├── api.ts
+        ├── main.tsx
+        ├── types.ts
+        └── utils.ts
 
-frontend/
-  src/
-    components/
-    api.ts
-    App.tsx
-    types.ts
-    utils.ts
 ```
+## Known Limitations
+
+* The frontend stores the JWT access token in `localStorage` for simplicity. For production, I would revisit this and consider secure `HttpOnly` cookies or another deployment-appropriate strategy.
+* The e2e tests use mocked persistence instead of a real PostgreSQL test database. This keeps the suite fast, but does not fully verify Prisma migrations or real database behavior.
+* Task deadlines are treated as date-based deadlines rather than precise timestamp deadlines. The frontend uses a date input, and overdue filtering is based on calendar-day behavior.
 
 ## What I Would Improve Next
 
@@ -442,12 +504,6 @@ Given more time, I would add:
 * stronger frontend handling for expired sessions
 * more polished loading and empty states in the UI
 
-## Known Limitations
-
-For simplicity, the frontend stores the JWT access token in `localStorage`. This keeps the challenge implementation small and easy to run locally. In a production application, I would consider using secure, `HttpOnly` cookies or another deployment-appropriate token storage strategy to reduce exposure to XSS risks.
-
-The e2e tests currently exercise request/response flows, validation, authentication, authorization, and task behavior using mocked persistence. With more time, I would add a dedicated test PostgreSQL instance to verify Prisma schema, migrations, and real database behavior end to end.
-
 ## Time-Limited Tradeoffs
 
 A few choices were kept deliberately simple:
@@ -460,3 +516,4 @@ A few choices were kept deliberately simple:
 * no advanced task features such as labels, priorities, sharing, or reminders
 
 The goal was to submit a complete, understandable implementation of the core todo/auth flow rather than a broader but less finished application.
+
