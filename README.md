@@ -500,7 +500,6 @@ Given more time, I would add:
 * database-backed e2e tests with a dedicated test database
 * refresh tokens or another token renewal strategy
 * centralized error response formatting
-* CI for linting, unit tests, and e2e tests
 * stronger frontend handling for expired sessions
 * more polished loading and empty states in the UI
 
