@@ -2,7 +2,6 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -113,7 +112,7 @@ function createPrismaMock() {
           );
         }
 
-        if (orderBy.deadline === 'asc') {
+        if (orderBy?.deadline === 'asc') {
           result = [...result].sort((left, right) => {
             if (!left.deadline && !right.deadline) {
               return 0;
@@ -197,7 +196,7 @@ function createPrismaMock() {
 }
 
 describe('App (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let prismaMock: ReturnType<typeof createPrismaMock>;
 
   beforeEach(async () => {
@@ -214,6 +213,7 @@ describe('App (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -221,6 +221,7 @@ describe('App (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
+
     await app.init();
   });
 
@@ -234,7 +235,8 @@ describe('App (e2e)', () => {
       .send({
         email,
         password,
-      });
+      })
+      .expect(201);
 
     return response.body;
   };
@@ -320,6 +322,45 @@ describe('App (e2e)', () => {
       });
     });
 
+    it('POST /tasks rejects unknown fields', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Valid title',
+          userId: 'someone-else',
+        })
+        .expect(400);
+    });
+
+    it('POST /tasks rejects invalid deadline', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Invalid deadline task',
+          deadline: 'not-a-date',
+        })
+        .expect(400);
+    });
+
+    it('POST /tasks rejects invalid done type', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Invalid done task',
+          done: 'yes',
+        })
+        .expect(400);
+    });
+
     it("GET /tasks with token lists only that user's tasks", async () => {
       const firstUser = await registerUser('first@example.com');
       const secondUser = await registerUser('second@example.com');
@@ -352,6 +393,80 @@ describe('App (e2e)', () => {
       });
     });
 
+    it('GET /tasks supports status=done filter', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Active task',
+          done: false,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Done task',
+          done: true,
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get('/tasks?status=done')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toMatchObject({
+        title: 'Done task',
+        done: true,
+      });
+    });
+
+    it('GET /tasks supports deadlineAsc sorting', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Later task',
+          deadline: '2030-01-02T00:00:00.000Z',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Earlier task',
+          deadline: '2030-01-01T00:00:00.000Z',
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get('/tasks?sort=deadlineAsc')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(200);
+
+      expect(response.body.map((task: TaskRecord) => task.title)).toEqual([
+        'Earlier task',
+        'Later task',
+      ]);
+    });
+
+    it('GET /tasks rejects invalid status query', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      await request(app.getHttpServer())
+        .get('/tasks?status=invalid')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .expect(400);
+    });
+
     it('PATCH /tasks/:id updates owned task', async () => {
       const auth = await registerUser('owner@example.com');
 
@@ -378,6 +493,83 @@ describe('App (e2e)', () => {
         done: true,
         userId: auth.user.id,
       });
+    });
+
+    it('PATCH /tasks/:id rejects unknown fields', async () => {
+      const auth = await registerUser('owner@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          title: 'Original title',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${auth.accessToken}`)
+        .send({
+          userId: 'someone-else',
+        })
+        .expect(400);
+    });
+
+    it('GET /tasks/:id returns 404 for another user task', async () => {
+      const owner = await registerUser('owner@example.com');
+      const otherUser = await registerUser('other@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({
+          title: 'Private task',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .get(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${otherUser.accessToken}`)
+        .expect(404);
+    });
+
+    it('PATCH /tasks/:id returns 404 for another user task', async () => {
+      const owner = await registerUser('owner@example.com');
+      const otherUser = await registerUser('other@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({
+          title: 'Private task',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${otherUser.accessToken}`)
+        .send({
+          title: 'Hacked title',
+        })
+        .expect(404);
+    });
+
+    it('DELETE /tasks/:id returns 404 for another user task', async () => {
+      const owner = await registerUser('owner@example.com');
+      const otherUser = await registerUser('other@example.com');
+
+      const createdTask = await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({
+          title: 'Private task',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`/tasks/${createdTask.body.id}`)
+        .set('Authorization', `Bearer ${otherUser.accessToken}`)
+        .expect(404);
     });
 
     it('DELETE /tasks/:id deletes owned task', async () => {

@@ -43,6 +43,18 @@ The challenge allows HTTP Basic Auth at minimum, but JWT is a better fit for a m
 
 Passwords are hashed with `bcrypt` before storage.
 
+### Why A Minimal React Frontend
+
+The challenge is primarily backend-focused, so I kept the frontend intentionally small. Its purpose is to demonstrate the main user flows against the real API:
+
+- register and log in
+- persist the JWT on the client
+- create, list, update, and delete tasks
+- mark tasks done or undone
+- apply basic task filtering and sorting
+
+For simplicity, the frontend stores the JWT in `localStorage`. In a production setup, I would evaluate `httpOnly` cookies depending on the deployment model and security constraints.
+
 ## Backend Overview
 
 ### Modules
@@ -85,6 +97,22 @@ Each task belongs to exactly one user. Task access is restricted by `userId` in 
 
 - `status=all|active|done|overdue`
 - `sort=newest|deadlineAsc`
+
+## Frontend Overview
+
+The frontend is a small React + Vite application built as a reviewer-facing MVP rather than a full product UI.
+
+It includes:
+
+- login and registration in a single screen
+- local token persistence
+- authenticated task list retrieval
+- create and edit task form
+- done/undone toggles
+- delete action
+- filter and sort controls
+
+I kept the frontend state management in plain React state to avoid adding unnecessary complexity for a time-boxed challenge.
 
 ## Security Considerations
 
@@ -161,12 +189,18 @@ The dedicated `/done` and `/undone` endpoints are convenience endpoints for comm
 
 ### Environment Variables
 
-Backend env file: `backend/.env`
+Copy `backend/.env.example` to `backend/.env`:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bizcuit_todo?schema=public"
 JWT_SECRET="super-secret-change-me"
 JWT_EXPIRES_IN="1h"
+```
+
+Copy `frontend/.env.example` to `frontend/.env` if you want to override the default API URL:
+
+```env
+VITE_API_BASE_URL="http://localhost:3000"
 ```
 
 ### Start PostgreSQL
@@ -234,7 +268,7 @@ Current backend tests cover:
 * JWT strategy
 * task service
 * task controller
-* minimal auth/task e2e flows
+* auth/task e2e flows, including authorization boundaries between users
 
 ## What I Would Improve Next
 
@@ -253,8 +287,6 @@ Because this was a time-boxed challenge, I intentionally kept some parts minimal
 
 * pagination is not implemented yet
 * API documentation is written in the README instead of generated through Swagger
-* e2e tests currently focus on request/response flows with mocked persistence
+* e2e tests currently focus on request/response flows and authorization boundaries with mocked persistence
 * advanced features such as task groups, offline support, and PWA caching were left as future improvements
 * README is focused on reviewer usability rather than exhaustive system documentation
-
-
